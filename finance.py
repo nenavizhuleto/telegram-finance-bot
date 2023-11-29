@@ -1,51 +1,112 @@
-MAX_PER_DAY = 1000
-MIN_SAVE_PER_DAY = 100
-PERIOD = 14
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import (
+        CallbackQueryHandler,
+        CommandHandler,
+        ContextTypes,
+)
 
-class Account:
-    def __init__(self, income: float, expense: float):
-        self.income = income
-        self.expense = expense
-        self.period = PERIOD
-        self.max_per_day = MAX_PER_DAY
-        self.min_save_per_day = MIN_SAVE_PER_DAY
+from log import logger
+from data import (
+        Action, 
+        Routes,
+        RoutesList,
+        ONLY_BACK_KEYBOARD,
+        account
+)
 
-    def register_income(self, value: float):
-        self.income = self.income + value
+FINANCE_KEYBOARD = InlineKeyboardMarkup(
+    [
+        [
+            InlineKeyboardButton("Доход", callback_data=Action.ADD_INCOME),
+            InlineKeyboardButton("Расход", callback_data=Action.ADD_EXPENSE),
+        ]
+    ],
+)
 
-    def register_expense(self, value: float):
-        self.expense = self.expense + value
+import settings
+import daily
 
-    def info(self) -> str:
-        return f"""
-        Income/Expense: {self.income}/{self.expense}
-        Free: {self.free()}
-        Per Day: {self.per_day()}
-        Save per day: {self.save_per_day()}
-        Day limit: {self.day_limit()}
-        Save per period: {self.save_per_period()}
-        """
+def RoutesFinance() -> RoutesList:
+    return [
+        CallbackQueryHandler(finance_start, pattern=f"^{Action.FINANCE}$"),
+        CallbackQueryHandler(finance_income, pattern=f"^{Action.ADD_INCOME}$"),
+        CallbackQueryHandler(finance_expense, pattern=f"^{Action.ADD_EXPENSE}$"),
+        CallbackQueryHandler(finance_start_over, pattern=f"^{Action.BACK}$"),
+        CommandHandler("settings", settings.settings_start),
+        CommandHandler("daily", daily.daily_start)
+    ]
 
-    def free(self):
-        return self.income - self.expense
 
-    def per_day(self):
-        return self.free() / self.period
+def get_account_stats() -> str:
+    acc = account()
+    return f"""
+Доходы/Расходы: {acc.income}/{acc.expense}
+Свободные: {acc.free()}
+В день: {round(acc.per_day(), 2)}
+Накоплений в день: {round(acc.save_per_day(), 2)}
+Дневной лимит: {round(acc.day_limit(), 2)}
+Накоплений за период ({acc.period} дней): {round(acc.save_per_period(), 2)}
+    """
 
-    def save_per_day(self):
-        per_day = self.per_day()
-        if per_day >= self.max_per_day:
-            return per_day - self.max_per_day
-        else:
-            save_per_day = per_day % 100
-            if save_per_day < self.min_save_per_day:
-                save_per_day = self.min_save_per_day
+# /start
+async def finance_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not update.message:
+        return -1
 
-            return save_per_day
+    logger.info(f"finance_start -- {update.message.from_user}")
+    text = f"""
+Статистика:
+{get_account_stats()}
+    """
 
-    def day_limit(self):
-        return self.per_day() - self.save_per_day()
+    await update.message.reply_text(text, reply_markup=FINANCE_KEYBOARD)
+    return Routes.FINANCE
 
-    def save_per_period(self):
-        return self.save_per_day() * self.period
+async def finance_start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query:
+        await query.answer()
+        logger.info(f"finance_start_over -- {query.data}")
+    else:
+        return -1
 
+    text = f"""
+Статистика:
+{get_account_stats()}
+    """
+
+    await query.edit_message_text(text=text, reply_markup=FINANCE_KEYBOARD)
+    return Routes.FINANCE
+
+
+async def finance_income(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query:
+        await query.answer()
+        logger.info(f"finance_income -- {query.data}")
+    else:
+        return -1
+
+    text = f"""
+    Введите доход
+    """
+
+    #await query.message.reply_text(text, reply_markup=ReplyKeyboardMarkup(keyboard, input_field_placeholder="Сумма"))
+    await query.edit_message_text(text=text, reply_markup=ONLY_BACK_KEYBOARD)
+    return Routes.FINANCE_INCOME
+
+
+async def finance_expense(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query:
+        await query.answer()
+        logger.info(f"finance_expense -- {query.data}")
+    else:
+        return -1
+
+    text = f"""
+    Введите расход
+    """
+
+    await query.edit_message_text(text=text, reply_markup=ONLY_BACK_KEYBOARD)
+    return Routes.FINANCE_EXPENSE

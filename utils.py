@@ -7,6 +7,12 @@ class Iota:
 
         return self.counter
 
+    def next_char(self) -> str:
+        self.counter = self.counter + 1
+
+        return chr(self.counter)
+
+
 
 iota = Iota()
 
