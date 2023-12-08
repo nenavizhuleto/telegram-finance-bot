@@ -82,18 +82,4 @@ CREATE TABLE IF NOT EXISTS transactions (
 
     cur.execute(transaction_sql)
 
-    lid = insert_income_transaction(1000.0)
-    print("inserted", lid)
-
-    trns = get_transactions()
-    print("all", trns)
-
-    lid = insert_expense_transaction(2000.0)
-    print("inserted", lid)
-
-    today = date.today()
-    print("today", today)
-    trns = get_transactions_by_date(date.today())
-    print("all", trns)
-
 

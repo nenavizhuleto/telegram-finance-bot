@@ -1,0 +1,8 @@
+.git
+*.db
+__pycache__
+venv
+.env
+.env.example
+.gitignore
+README.md
